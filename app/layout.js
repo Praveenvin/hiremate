@@ -8,13 +8,19 @@ export const metadata = {
   title: "Hiremate",
   description:
     "AI-powered interview agent that conducts interviews, evaluates answers, and generates detailed candidate reports.",
+  icons: {
+    icon: "/favicon.ico",
+  },
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
+        {/* Global Notifications */}
         <Toaster />
+
+        {/* Page Content */}
         {children}
       </body>
     </html>

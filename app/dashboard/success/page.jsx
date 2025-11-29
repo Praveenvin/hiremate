@@ -1,15 +1,12 @@
 "use client";
+
 import React, { useContext, useEffect, useState } from "react";
-// import Lottie from "lottie-react";
-// import PaymentSuccefull from "@/public/PaymentSuccefull.json";
-// import PaymentCheck from "@/public/PaymentCheck.json";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   MatchUserPaymentSecretKey,
   RemoveUserPaymentSecretKey,
-  // updateCreditsAndTotalSpent, // Commented out for unlimited credits
 } from "@/app/_Serveractions";
 import { useUser } from "@/lib/simpleAuth";
 import { UserInfoContext } from "@/context/UserInfoContext";
@@ -17,109 +14,61 @@ import { UserInfoContext } from "@/context/UserInfoContext";
 const SuccessPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const paymentkeyQueryParam = searchParams.get("session_id");
-  const [loading, setLoading] = useState(true);
-  const [Lottie, setLottie] = useState(null);
-  const [PaymentSuccefull, setPaymentSuccefull] = useState(null);
-  const [PaymentCheck, setPaymentCheck] = useState(null);
-  const { userInfo, setUserInfo } = useContext(UserInfoContext);
-  const { user } = useUser();
 
+  const paymentKey = searchParams.get("session_id");
+  const { user } = useUser();
+  const { userInfo } = useContext(UserInfoContext);
+
+  const [Lottie, setLottie] = useState(null);
+  const [PaymentSuccess, setPaymentSuccess] = useState(null);
+  const [PaymentCheck, setPaymentCheck] = useState(null);
+
+  /** -----------------------------
+   *  Load Lottie animations
+   *  ----------------------------- */
   useEffect(() => {
-    // Dynamically import Lottie and animation data on client side
-    import('lottie-react').then((module) => {
-      setLottie(() => module.default);
-    });
-    import('@/public/PaymentSuccefull.json').then((module) => {
-      setPaymentSuccefull(module.default);
-    });
-    import('@/public/PaymentCheck.json').then((module) => {
-      setPaymentCheck(module.default);
-    });
+    import("lottie-react").then((m) => setLottie(() => m.default));
+    import("@/public/PaymentSuccefull.json").then((m) =>
+      setPaymentSuccess(m.default)
+    );
+    import("@/public/PaymentCheck.json").then((m) =>
+      setPaymentCheck(m.default)
+    );
   }, []);
 
+  /** -----------------------------
+   *  Payment verification flow
+   *  ----------------------------- */
   useEffect(() => {
-    if (paymentkeyQueryParam && userInfo) {
-      console.log("Payment key ✅✅✅", paymentkeyQueryParam);
-      console.log("user Info 🤑🤑🤑: ", userInfo);
-      const makebackendcall = async () => {
-        userInfo && (await Matchpaymentsecretkey());
-      };
+    if (!paymentKey || !userInfo || !user?.email) return;
 
-      makebackendcall();
-    }
-  }, [userInfo, paymentkeyQueryParam]);
+    const runPaymentFlow = async () => {
+      try {
+        const matched = await MatchUserPaymentSecretKey(
+          user.email,
+          paymentKey
+        );
 
-  const Matchpaymentsecretkey = async () => {
-    try {
-      const result = await MatchUserPaymentSecretKey(
-        user?.email,
-        paymentkeyQueryParam
-      );
-      if (result) {
-        console.log("User payment secret key matched 🚀", result);
+        if (matched) {
+          console.log("Payment verified 🔥", matched);
 
-        await DeletePaymentSecretKeyFromDB();
-      } else {
-        console.log("User payment secret key not matched 🚀", result);
+          // Remove secret key after use
+          await RemoveUserPaymentSecretKey(user.email);
+          console.log("Payment key removed 🔥");
+        } else {
+          console.log("Payment key mismatch ❌");
+        }
+      } catch (error) {
+        console.error("Payment verification error:", error);
       }
-    } catch (error) {
-      console.error("Error matching user payment secret key", error);
-    }
-  };
+    };
 
-  const DeletePaymentSecretKeyFromDB = async () => {
-    try {
-      const result = await RemoveUserPaymentSecretKey(
-        user?.email
-      );
-      if (result) {
-        console.log("User payment secret key deleted 🚀", result);
-        // await AddCreditsOnUserAccount(); // Commented out for unlimited credits
-      } else {
-        console.log("User payment secret key not deleted 🚀", result);
-      }
-    } catch (error) {
-      console.error("Error deleting user payment secret key", error);
-    }
-  };
-
-  // const AddCreditsOnUserAccount = async () => {
-  //   try {
-  //     const currentCredits = userInfo?.credits || 0;
-  //     const newCredits = currentCredits + 12;
-  //     const email = user?.email;
-  //     let newTotalSpent = userInfo?.totalSpent || 0;
-  //     newTotalSpent += 1;
-
-  //     // if (!isNaN(newTotalSpent) && typeof newTotalSpent === "number") {
-  //     //   newTotalSpent += 1;
-  //     // }
-
-  //     if (!isNaN(newCredits) && typeof newCredits === "number") {
-  //       const creditsUpdated = await updateCreditsAndTotalSpent(
-  //         email,
-  //         newCredits,
-  //         newTotalSpent
-  //       );
-  //       if (creditsUpdated) {
-  //         // setUserInfo((prevUserInfo) => ({
-  //         //   ...prevUserInfo,
-  //         //   credits: newCredits,
-  //         //   totalSpent: newTotalSpent,
-  //         // }));
-  //         console.log("User credits updated: 🎉🎉🎉", newCredits);
-  //       }
-  //     } else {
-  //       console.log("Invalid credits value:", newCredits);
-  //     }
-  //   } catch (error) {
-  //     console.error("Error updating user credits", error);
-  //   }
-  // };
+    runPaymentFlow();
+  }, [paymentKey, userInfo, user]);
 
   return (
     <>
+      {/* BACK BUTTON */}
       <div className="flex justify-start -mx-32 mt-3">
         <Button
           onClick={() => router.replace("/dashboard")}
@@ -128,35 +77,39 @@ const SuccessPage = () => {
           <ArrowLeft /> Go back
         </Button>
       </div>
-      <div className="flex flex-col p-0">
-        <div className="flex flex-col justify-center items-center -mt-12">
-          {Lottie && PaymentSuccefull ? (
-            <Lottie
-              animationData={PaymentSuccefull}
-              loop={true}
-              className="h-screen -mt-32 justify-center items-center"
-            />
-          ) : (
-            <div className="h-screen w-screen bg-gray-200 rounded animate-pulse -mt-32"></div>
-          )}
 
-          {Lottie && PaymentCheck ? (
-            <Lottie
-              animationData={PaymentCheck}
-              loop={true}
-              className=" flex h-52 justify-center items-center -mt-52"
-            />
-          ) : (
-            <div className="h-52 w-52 bg-gray-200 rounded animate-pulse -mt-52"></div>
-          )}
+      {/* MAIN SUCCESS UI */}
+      <div className="flex flex-col items-center -mt-12">
+        
+        {/* PAYMENT SUCCESS ANIMATION */}
+        {Lottie && PaymentSuccess ? (
+          <Lottie
+            animationData={PaymentSuccess}
+            loop
+            className="h-screen -mt-32 flex justify-center items-center"
+          />
+        ) : (
+          <div className="h-screen w-screen bg-gray-200 rounded animate-pulse -mt-32"></div>
+        )}
 
-          <h2 className="font-bold text-2xl text-indigo-700">
-            ⚡ Payment Succefull ⚡
-          </h2>
-          <h2 className="font-bold text-2xl">
-            Thanks for buying Credits for Hiremate Mock Interviews
-          </h2>
-        </div>
+        {/* SECOND CHECKMARK ANIMATION */}
+        {Lottie && PaymentCheck ? (
+          <Lottie
+            animationData={PaymentCheck}
+            loop
+            className="h-52 flex justify-center items-center -mt-52"
+          />
+        ) : (
+          <div className="h-52 w-52 bg-gray-200 rounded animate-pulse -mt-52"></div>
+        )}
+
+        {/* TEXT MESSAGES */}
+        <h2 className="font-bold text-2xl text-indigo-700">
+          ⚡ Payment Successful ⚡
+        </h2>
+        <h2 className="font-bold text-2xl text-center px-4">
+          Thanks for buying credits for Hiremate AI Mock Interviews
+        </h2>
       </div>
     </>
   );
@@ -164,5 +117,4 @@ const SuccessPage = () => {
 
 export default SuccessPage;
 
-// Force dynamic rendering for this page
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";

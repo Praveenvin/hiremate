@@ -1,38 +1,42 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
 import { AudioLines } from "lucide-react";
-import Image from "next/image";
 import React, { useEffect, useState, useRef } from "react";
 import useSpeechToText from "react-hook-speech-to-text";
 import Webcam from "react-webcam";
-import voiceline from "./../../../../../../public/voicelines.json";
-import webcamlottie from "./../../../../../../public/webcamlottie.json";
-import Lottie from "lottie-react";
+import voiceline from "@/public/voicelines.json";
+import webcamlottie from "@/public/webcamlottie.json";
 import { toast } from "sonner";
 import { generateContent } from "@/utils/GeminiAIModal";
-// import { db } from "@/utils/db";
-// import { UserAnswer } from "@/utils/schema";
 import { useUser } from "@/lib/simpleAuth";
 import moment from "moment";
 import { SaveUserAnswer } from "@/app/_Serveractions";
 import dynamic from "next/dynamic";
 
-// Dynamically import Monaco Editor for Round 2
+// Monaco editor (client only)
 const MonacoEditor = dynamic(() => import("@monaco-editor/react"), { ssr: false });
 
+// Lottie (client-only)
+const Lottie = dynamic(() => import("lottie-react"), { ssr: false });
+
 const RecordAnswerSection = ({
-  mockInterviewQuestion,
-  activeQuestionIndex,
+  mockInterviewQuestion = [],
+  activeQuestionIndex = 0,
   interviewData,
-  currentRound,
+  currentRound = 1,
   agentType,
 }) => {
   const [userAnswer, setUserAnswer] = useState("");
   const [loading, setLoading] = useState(false);
-  const [code, setCode] = useState("// Write your solution here\n\nfunction solution() {\n    // Your code here\n}\n");
+  const [code, setCode] = useState(
+    "// Write your solution here\n\nfunction solution() {\n    // Your code here\n}\n"
+  );
   const [language, setLanguage] = useState("javascript");
   const [speechSupported, setSpeechSupported] = useState(false);
   const { user } = useUser();
+
+  // Speech-to-text hook
   const {
     error,
     interimResult,
@@ -46,137 +50,187 @@ const RecordAnswerSection = ({
     useLegacyResults: false,
   });
 
-  // Check if speech recognition is supported
-  useEffect(() => {
-    const checkSpeechSupport = () => {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      setSpeechSupported(!!SpeechRecognition);
-    };
+  // Keep a ref to avoid stale closures
+  const resultsRef = useRef([]);
+  resultsRef.current = results;
 
-    checkSpeechSupport();
+  // Check for speech support on client
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+    setSpeechSupported(!!SpeechRecognition);
   }, []);
 
+  // Show speech errors as toast (if any)
   useEffect(() => {
     if (error && speechSupported) {
-      console.log("Speech to text error:", error);
+      console.error("Speech-to-text error:", error);
       toast.error("Speech recognition error: " + error);
     }
   }, [error, speechSupported]);
 
-  const StartStopRecording = () => {
-    console.log("StartStopRecording called, isRecording:", isRecording);
-    if (isRecording) {
-      stopSpeechToText();
-      // Submit answer when stopping recording
-      if (userAnswer.length > 10) {
-        UpdateUserAnswer();
+  // When speech results change, update the text area (live)
+  useEffect(() => {
+    if (!results || results.length === 0) return;
+
+    // Combine all transcripts
+    const combined = results.map((r) => r.transcript).join(" ");
+    // Append interim result (live) if available
+    const finalText = (combined + " " + (interimResult || "")).trim();
+
+    setUserAnswer(finalText);
+  }, [results, interimResult]);
+
+  // Helper: current question & correct answer
+  const currentQuestionObj = mockInterviewQuestion?.[activeQuestionIndex] || {};
+  const currentQuestionText = currentQuestionObj?.question || "";
+  const correctAnswerText = currentQuestionObj?.answer || "";
+
+  // Start / Stop recording
+  const StartStopRecording = async () => {
+    try {
+      if (isRecording) {
+        // Stop recording
+        stopSpeechToText();
+
+        // Wait a moment to ensure results are finalized (small delay)
+        await new Promise((res) => setTimeout(res, 250));
+
+        // Only submit if there's enough content
+        if ((userAnswer && userAnswer.trim().length > 10) || (resultsRef.current?.length > 0)) {
+          await handleSubmitAnswer();
+        } else {
+          toast.error("Please speak a longer answer or type it in the textbox.");
+        }
+      } else {
+        // Clear previous results to avoid stale transcripts
+        setResults([]);
+        setUserAnswer("");
+        startSpeechToText();
       }
-    } else {
-      startSpeechToText();
+    } catch (err) {
+      console.error("StartStopRecording error:", err);
+      toast.error("Microphone error. Please check permissions.");
     }
   };
 
-  const UpdateUserAnswer = async () => {
-    console.log("UserAnswer 🔥 ", userAnswer);
+  // Main function to evaluate and save user answer
+  const handleSubmitAnswer = async () => {
     setLoading(true);
 
-    const question = mockInterviewQuestion[activeQuestionIndex]?.question;
-    const correctAnswer = mockInterviewQuestion[activeQuestionIndex]?.answer;
+    // Choose what to submit based on round
     const answerToSubmit = currentRound === 2 ? code : userAnswer;
 
+    // Basic validation
+    if (!answerToSubmit || answerToSubmit.trim().length < 5) {
+      toast.error("Please provide a valid answer before submitting.");
+      setLoading(false);
+      return;
+    }
+
+    const question = currentQuestionText;
+    const correctAnswer = correctAnswerText;
+
+    // Mocked agent evaluation (kept your logic, but cleaned)
+    let agentScore = 0;
+    let agentFeedback = "No feedback";
+    let overallScore = 0;
+
     try {
-      let agentScore = 0;
-      let agentFeedback = "";
-      let overallScore = 0;
-
-      // Round-specific evaluation
-      if (currentRound === 1 && agentType === 'hiring_manager') {
-        // Hiring Manager - Problem-solving focus
+      if (currentRound === 1 && agentType === "hiring_manager") {
         agentScore = Math.floor(Math.random() * 30) + 70; // 70-100
-        agentFeedback = "Good problem-solving approach. Consider discussing edge cases and alternative solutions.";
+        agentFeedback =
+          "Good problem-solving approach. Consider discussing edge cases and alternatives.";
         overallScore = agentScore;
-
-      } else if (currentRound === 2 && agentType === 'technical_recruiter') {
-        // Technical Recruiter - Technical accuracy focus
-        // For coding questions, evaluate based on code quality
-        if (code.includes("function") || code.includes("class") || code.includes("def ") || code.includes("public")) {
-          agentScore = Math.floor(Math.random() * 25) + 70; // 70-95 for attempted solutions
-          agentFeedback = "Code structure looks good. Consider edge cases and error handling.";
+      } else if (
+        currentRound === 2 &&
+        agentType === "technical_recruiter"
+      ) {
+        // Basic heuristic for code presence
+        const hasCodeKeywords =
+          /function|class|def\s+|public\s+|=>|console\.log|return\s+/i.test(
+            code
+          );
+        if (hasCodeKeywords) {
+          agentScore = Math.floor(Math.random() * 25) + 70; // 70-95
+          agentFeedback =
+            "Code structure looks good. Consider edge cases and optimizations.";
         } else {
-          agentScore = Math.floor(Math.random() * 20) + 50; // 50-70 for basic attempts
-          agentFeedback = "Code needs more structure. Focus on implementing the core logic first.";
+          agentScore = Math.floor(Math.random() * 20) + 50; // 50-70
+          agentFeedback =
+            "Code needs more structure. Implement core logic first, then optimize.";
         }
         overallScore = agentScore;
-
-      } else if (currentRound === 3 && agentType === 'panel_lead') {
-        // Panel Lead - Communication focus
-        agentScore = Math.floor(Math.random() * 30) + 70; // 70-100
-        agentFeedback = "Clear and well-structured explanation. Try to be more concise and use better analogies.";
+      } else if (currentRound === 3 && agentType === "panel_lead") {
+        agentScore = Math.floor(Math.random() * 30) + 70;
+        agentFeedback =
+          "Clear and structured explanation. Try to be concise and use examples.";
+        overallScore = agentScore;
+      } else {
+        // Fallback
+        agentScore = Math.floor(Math.random() * 30) + 60;
+        agentFeedback = "Automated evaluation completed.";
         overallScore = agentScore;
       }
 
-      console.log(`Round ${currentRound} ${agentType} evaluation:`, {
-        score: agentScore,
+      // Prepare payload for SaveUserAnswer server action
+      const answerData = {
+        mockIdRef: interviewData?.mockId,
+        question,
+        correctAns: correctAnswer,
+        userAns: answerToSubmit,
         feedback: agentFeedback,
-        submittedAnswer: answerToSubmit.substring(0, 100) + "..."
-      });
+        rating: `${agentScore}/100`,
+        userEmail: user?.email,
+        createdAt: moment().format("DD-MM-YYYY"),
+        hiringManagerScore:
+          agentType === "hiring_manager" ? agentScore : null,
+        technicalRecruiterScore:
+          agentType === "technical_recruiter" ? agentScore : null,
+        panelLeadScore: agentType === "panel_lead" ? agentScore : null,
+        hiringManagerFeedback:
+          agentType === "hiring_manager" ? agentFeedback : null,
+        technicalRecruiterFeedback:
+          agentType === "technical_recruiter" ? agentFeedback : null,
+        panelLeadFeedback:
+          agentType === "panel_lead" ? agentFeedback : null,
+        overallScore,
+        roundNumber: currentRound,
+        agentType,
+      };
 
-      try {
-        const answerData = {
-          mockIdRef: interviewData?.mockId,
-          question: question,
-          correctAns: correctAnswer,
-          userAns: answerToSubmit,
-          feedback: agentFeedback,
-          rating: `${agentScore}/100`,
-          userEmail: user?.email,
-          createdAt: moment().format("DD-MM-YYYY"),
-          // Round-specific scores
-          hiringManagerScore: agentType === 'hiring_manager' ? agentScore : null,
-          technicalRecruiterScore: agentType === 'technical_recruiter' ? agentScore : null,
-          panelLeadScore: agentType === 'panel_lead' ? agentScore : null,
-          hiringManagerFeedback: agentType === 'hiring_manager' ? agentFeedback : null,
-          technicalRecruiterFeedback: agentType === 'technical_recruiter' ? agentFeedback : null,
-          panelLeadFeedback: agentType === 'panel_lead' ? agentFeedback : null,
-          overallScore: overallScore,
-          // New round-based fields
-          roundNumber: currentRound,
-          agentType: agentType,
-        };
+      // Save to backend (server action)
+      const resp = await SaveUserAnswer(answerData);
 
-        const resp = await SaveUserAnswer(answerData);
-
-        if (resp) {
-          toast.success(`Round ${currentRound} Answer Recorded Successfully!`);
-          setUserAnswer("");
-          setCode("// Write your solution here\n\nfunction solution() {\n    // Your code here\n}\n");
-          setResults([]);
-        }
-        setResults([]);
-        setLoading(false);
-      } catch (error) {
-        toast.error(
-          "Something went wrong while recording your Answer! Please try again."
+      if (resp) {
+        toast.success(
+          `Round ${currentRound} Answer Recorded Successfully!`
         );
-        console.error(
-          "Error in Storing user recorded ans and ai feedback into the database :",
-          error
+        // Reset local state
+        setUserAnswer("");
+        setCode(
+          "// Write your solution here\n\nfunction solution() {\n    // Your code here\n}\n"
         );
-        setLoading(false);
+        setResults([]); // clear hook results
+      } else {
+        toast.error("Failed to save answer. Please try again.");
       }
-    } catch (error) {
-      console.error("Error generating Feedback for question: ", error);
+    } catch (err) {
+      console.error("Error saving answer:", err);
+      toast.error("Something went wrong while saving your answer.");
+    } finally {
       setLoading(false);
     }
   };
-  // Render different UI based on round
+
+  // Round-specific UI: Round 2 -> Code editor (Monaco)
   if (currentRound === 2) {
-    // Round 2: Coding Round - Show Code Editor
     return (
       <div className="flex flex-col justify-center items-center w-full">
         <div className="w-full max-w-4xl">
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Select Language:</label>
+          <div className="mb-4 flex items-center justify-between">
+            <label className="block text-sm font-medium">Language</label>
             <select
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
@@ -192,7 +246,7 @@ const RecordAnswerSection = ({
 
           <div className="border rounded-lg overflow-hidden">
             <MonacoEditor
-              height="400px"
+              height="420px"
               language={language}
               value={code}
               onChange={(value) => setCode(value || "")}
@@ -208,13 +262,7 @@ const RecordAnswerSection = ({
 
           <div className="mt-4 flex gap-4 justify-center">
             <Button
-              onClick={() => {
-                if (code.trim().length > 20) {
-                  UpdateUserAnswer();
-                } else {
-                  toast.error("Please write more code before submitting");
-                }
-              }}
+              onClick={handleSubmitAnswer}
               disabled={loading}
               className="px-6 py-2"
             >
@@ -223,64 +271,75 @@ const RecordAnswerSection = ({
           </div>
 
           <div className="mt-4 text-center text-sm text-gray-600">
-            <p>💡 Tip: Focus on implementing the core logic. The Technical Recruiter will evaluate your code structure and problem-solving approach.</p>
+            <p>
+              💡 Tip: Focus on the core logic first. The Technical Recruiter
+              evaluates code structure, correctness, and clarity.
+            </p>
           </div>
         </div>
       </div>
     );
   }
 
-  // Rounds 1 & 3: Text/Voice Input
+  // Rounds 1 & 3: Webcam + Voice/Text
   return (
-    <div className="flex flex-col justify-center items-center">
-      <div className="flex flex-col mt-20 justify-center items-center bg-black rounded-lg p-5">
-        <Lottie animationData={webcamlottie} loop={true} className="absolute" />
-        <Webcam
-          mirrored={true}
-          style={{
-            height: 300,
-            width: "100%",
-            zIndex: 10,
-          }}
-        />
-      </div>
+    <div className="flex flex-col justify-center items-center w-full">
+      {/* Webcam area */}
+      <div className="relative w-full max-w-xl">
+        <div className="bg-black rounded-lg p-3 relative overflow-hidden">
+          {/* Lottie background */}
+          <div className="absolute inset-0 opacity-30 pointer-events-none">
+            <Lottie animationData={webcamlottie} loop />
+          </div>
 
-      {/* Voice Recording Section - Only show if supported */}
-      {speechSupported ? (
-        <Button
-          disabled={loading}
-          onClick={StartStopRecording}
-          variant="outline"
-          className="my-10 border border-black"
-        >
-          {isRecording ? (
-            <h2 className="text-red-600 flex gap-2 justify-center items-center text-center">
-              <Lottie
-                animationData={voiceline}
-                loop={true}
-                className="w-12 h-16"
-              />{" "}
-              <span>Stop Recording</span>
-            </h2>
-          ) : (
-            "Record Answer"
-          )}
-        </Button>
-      ) : (
-        <div className="my-10 text-center">
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-            <p className="text-yellow-800 text-sm">
-              🎤 <strong>Voice recording not available</strong>
-            </p>
-            <p className="text-yellow-700 text-xs mt-1">
-              Speech recognition requires Chrome or a Chromium-based browser.
-              Please use text input below or switch to Chrome for voice recording.
-            </p>
+          {/* Webcam */}
+          <div className="relative z-10">
+            <Webcam
+              mirrored
+              className="rounded-lg border shadow-md w-full"
+              style={{ height: 300, objectFit: "cover" }}
+            />
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Text Input - Always available as fallback */}
+      {/* Record / Stop Button */}
+      <div className="my-6">
+        {speechSupported ? (
+          <Button
+            disabled={loading}
+            onClick={StartStopRecording}
+            variant="outline"
+            className="flex items-center gap-3"
+          >
+            {isRecording ? (
+              <div className="flex items-center gap-2">
+                <Lottie animationData={voiceline} loop className="w-12 h-12" />
+                <span className="text-red-600">Stop Recording</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <AudioLines />
+                <span>Record Answer</span>
+              </div>
+            )}
+          </Button>
+        ) : (
+          <div className="my-4 text-center">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+              <p className="text-yellow-800 text-sm">
+                🎤 <strong>Voice recording not available</strong>
+              </p>
+              <p className="text-yellow-700 text-xs mt-1">
+                Speech recognition works best in Chrome / Chromium browsers.
+                Use the text box below as an alternative.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Text input fallback */}
       <div className="my-4 w-full max-w-md">
         <textarea
           value={userAnswer}
@@ -290,33 +349,32 @@ const RecordAnswerSection = ({
               ? "Type your problem-solving answer here..."
               : "Type your communication answer here..."
           }
-          className="w-full p-2 border rounded"
-          rows={4}
+          className="w-full p-3 border rounded min-h-[90px]"
         />
         <Button
-          onClick={() => {
-            if (userAnswer.length > 10) {
-              UpdateUserAnswer();
-            } else {
-              toast.error("Please provide a longer answer");
-            }
-          }}
+          onClick={handleSubmitAnswer}
           disabled={loading}
-          className="mt-2 w-full"
+          className="mt-3 w-full"
         >
-          Submit Answer
+          {loading ? "Submitting..." : "Submit Answer"}
         </Button>
       </div>
 
       <div className="mt-4 text-center text-sm text-gray-600 max-w-md">
         {currentRound === 1 ? (
-          <p>🧠 <strong>Hiring Manager Round:</strong> Focus on analytical thinking and problem-solving approach.</p>
+          <p>
+            🧠 <strong>Hiring Manager Round:</strong> Focus on analytical
+            thinking and a clear step-by-step approach.
+          </p>
         ) : (
-          <p>🎤 <strong>Panel Lead Round:</strong> Demonstrate clear communication and articulation skills.</p>
+          <p>
+            🎤 <strong>Panel Lead Round:</strong> Show confidence, clarity, and
+            structure in your answers.
+          </p>
         )}
         {!speechSupported && (
           <p className="mt-2 text-xs text-gray-500">
-            💡 Text input is always available as an alternative to voice recording.
+            💡 Text input is always available as an alternative.
           </p>
         )}
       </div>
@@ -325,11 +383,3 @@ const RecordAnswerSection = ({
 };
 
 export default RecordAnswerSection;
-
-// This will show/display the user spoken text on screen
-// <ul>
-//   {results.map((result) => (
-//     <li key={result.timestamp}>{result.transcript}</li>
-//   ))}
-//   {interimResult && <li>{interimResult}</li>}
-// </ul>

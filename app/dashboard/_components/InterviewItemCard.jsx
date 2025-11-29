@@ -1,6 +1,8 @@
+"use client";
+
 import { DeleteInterview, UpdateFavorite } from "@/app/_Serveractions";
 import { Button } from "@/components/ui/button";
-import { LoaderCircle, Star, Trash, Trash2 } from "lucide-react";
+import { LoaderCircle, Star, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import React, { useState } from "react";
 import { FaStar } from "react-icons/fa6";
@@ -18,72 +20,81 @@ import {
 } from "@/components/ui/alert-dialog";
 
 const InterviewItemCard = ({ interview, refreshCallBack }) => {
-  const [toggleFavourite, setToggleFavorite] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  // Toggle favourite
   const handleFavourite = async () => {
-    setToggleFavorite(!toggleFavourite);
-    // Handle favourite logic here
     try {
       const result = await UpdateFavorite(
         !interview?.favourite,
         interview?.mockId
       );
+
       if (result) {
-        console.log("User favorite updated 🚀", result);
-        toast.success("Updated your Favourites interview list");
+        toast.success("Updated your favourite interviews");
         refreshCallBack();
       }
     } catch (error) {
-      console.log("Error updating user favorite", error);
-      toast.error("Error updating user favorite");
+      console.error("Error updating favourite", error);
+      toast.error("Error updating favourite. Try again!");
     }
-    // console.log(interview?.mockId);
   };
 
+  // Delete interview
   const handleDelete = async () => {
     try {
       setLoading(true);
+
       const result = await DeleteInterview(interview?.mockId);
       if (result) {
-        console.log("Interview deleted 🚀", result);
-        toast.success("Deleted interview successfully !");
+        toast.success("Interview deleted successfully!");
         refreshCallBack();
-        setLoading(false);
       }
     } catch (error) {
-      console.error("Error deleting interview", error);
-      toast.error("Error deleting interview. Please try again later.");
+      console.error("Delete interview error:", error);
+      toast.error("Error deleting interview. Try again later.");
+    } finally {
       setLoading(false);
     }
   };
+
   return (
-    <div className="border shadow-sm rounded-lg p-3">
-      <div className="flex justify-between">
+    <div className="border shadow-sm rounded-lg p-4 bg-white">
+      {/* Header: Job title + Favourite icon */}
+      <div className="flex justify-between items-center">
         <h2 className="font-bold text-primary">{interview?.jobPosition}</h2>
 
         {interview?.favourite ? (
           <FaStar
-            size={25}
-            onClick={() => handleFavourite()}
+            size={22}
+            onClick={handleFavourite}
             className="cursor-pointer text-yellow-400"
           />
         ) : (
-          <Star onClick={() => handleFavourite()} className="cursor-pointer" />
+          <Star
+            size={22}
+            onClick={handleFavourite}
+            className="cursor-pointer hover:text-primary"
+          />
         )}
       </div>
-      <h2 className="text-sm font-medium text-gray-600">
+
+      {/* Experience & Create Date */}
+      <h2 className="text-sm font-medium text-gray-600 mt-1">
         {interview?.jobExperience} Years of Experience
       </h2>
-      <h2 className="text-xs text-gray-400">
+      <h2 className="text-xs text-gray-400 mt-0.5">
         Created At: {interview?.createdAt}
       </h2>
-      <div className="grid grid-col-2 lg:grid-cols-3 items-center mt-2 gap-5">
+
+      {/* Buttons */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 items-center mt-3 gap-3">
+        {/* Feedback */}
         <Button
           onClick={() =>
             router.push(
-              "/dashboard/interview/" + interview?.mockId + "/feedback"
+              `/dashboard/interview/${interview?.mockId}/feedback`
             )
           }
           size="sm"
@@ -92,9 +103,11 @@ const InterviewItemCard = ({ interview, refreshCallBack }) => {
         >
           Feedback
         </Button>
+
+        {/* Start */}
         <Button
           onClick={() =>
-            router.push("/dashboard/interview/" + interview?.mockId)
+            router.push(`/dashboard/interview/${interview?.mockId}`)
           }
           size="sm"
           className="w-full"
@@ -102,35 +115,41 @@ const InterviewItemCard = ({ interview, refreshCallBack }) => {
           Start
         </Button>
 
-        <div className="flex justify-center lg:justify-end">
+        {/* Delete (Alert Dialog) */}
+        <div className="flex justify-center lg:justify-end w-full">
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 disabled={loading}
-                className="text-red-500"
                 size="sm"
                 variant="outline"
+                className="text-red-500"
               >
                 {loading ? (
-                  <LoaderCircle className="text-red-500 animate-spin" />
+                  <LoaderCircle className="animate-spin text-red-500" />
                 ) : (
                   <Trash2 />
                 )}
               </Button>
             </AlertDialogTrigger>
+
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogTitle>Delete Interview?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete your
-                  Interview from your account and remove your data from our
-                  servers.
+                  This action cannot be undone. Your interview will be
+                  permanently deleted from your account.
                 </AlertDialogDescription>
               </AlertDialogHeader>
+
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-red-500">
-                  Continue
+
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-red-500 hover:bg-red-600"
+                >
+                  Delete
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>

@@ -1,56 +1,33 @@
 "use client";
-import { Button } from "@/components/ui/button";
-import { useUser } from "@/lib/simpleAuth";
-// import { db } from "@/utils/db";
-// import { UserDetails } from "@/utils/schema";
-// import moment from "moment";
+
 import { useEffect } from "react";
-import { toast } from "sonner";
-// import { eq } from "drizzle-orm";
+import { useUser } from "@/lib/simpleAuth";
 import LandingPage from "./_Serveractions/LandingPage";
+import { toast } from "sonner";
+
+// Correct path ✔
+import { addUserDetailsToDB } from "./actions/addUserDetails";
 
 export default function Home() {
   const { user, isSignedIn } = useUser();
 
   useEffect(() => {
-    if (user && isSignedIn) {
-      // addUserDetailsToDB(); // Removed to fix client-side db import issue
+    async function handleUser() {
+      if (user && isSignedIn) {
+        const email = user?.primaryEmailAddress?.emailAddress;
+        const result = await addUserDetailsToDB(email);
+
+        if (result?.success) {
+          toast.success("User details synced");
+        }
+      }
     }
+
+    handleUser();
   }, [user, isSignedIn]);
 
-  // const addUserDetailsToDB = async () => {
-  //   try {
-  //     // Check if the user email already exists
-  //     const existingUser = await db
-  //       .select()
-  //       .from(UserDetails)
-  //       .where(
-  //         eq(UserDetails?.userEmail, user?.primaryEmailAddress?.emailAddress)
-  //       );
-
-  //     // console.log(existingUser);
-
-  //     if (existingUser.length === 0) {
-  //       // If user email does not exist, insert new user details
-  //       const resp = await db.insert(UserDetails).values({
-  //         userEmail: user?.primaryEmailAddress?.emailAddress,
-  //         createdAt: moment().format("YYYY-MM-DD"), // Use a standard format for dates
-  //       });
-
-  //       if (resp) {
-  //         toast.success("User Details added successfully");
-  //       }
-  //     } else {
-  //       // toast.info("User email already exists");
-  //       // console.log("User email already exists");
-  //     }
-  //   } catch (error) {
-  //     console.error("Error adding user details:", error);
-  //     // toast.error("Error adding user details");
-  //   }
-  // };
   return (
-    <div>
+    <div className="w-full">
       <LandingPage />
     </div>
   );

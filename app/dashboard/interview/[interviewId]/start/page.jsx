@@ -1,5 +1,6 @@
 "use client";
-import React, { useEffect, useState } from "react";
+
+import React, { useEffect, useState, useCallback } from "react";
 import QuestionsSection from "./_components/QuestionsSection";
 import RecordAnswerSection from "./_components/RecordAnswerSection";
 import { Button } from "@/components/ui/button";
@@ -7,92 +8,140 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 const StartInterview = ({ params }) => {
-  const [interviewData, setInterviewData] = useState();
-  const [mockInterviewQuestion, setMockInterviewQuestion] = useState();
+  const [interviewData, setInterviewData] = useState(null);
+  const [mockInterviewQuestion, setMockInterviewQuestion] = useState(null);
   const [currentRound, setCurrentRound] = useState(1);
   const [activeQuestionIndex, setActiveQuestionIndex] = useState(0);
   const [roundCompleted, setRoundCompleted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    GetInterviewDetails();
-  }, []);
-
-  // Get Interview Details by mockId/Interview ID
-  const GetInterviewDetails = async () => {
+  /** ============================
+   *  FETCH INTERVIEW DETAILS
+   * ============================ */
+  const fetchInterviewDetails = useCallback(async () => {
     try {
-      const response = await fetch(`/api/interview-details?mockId=${params.interviewId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch interview details');
-      }
+      const response = await fetch(
+        `/api/interview-details?mockId=${params.interviewId}`
+      );
+
+      if (!response.ok) throw new Error("Failed to load interview");
+
       const data = await response.json();
       const interview = data.interview;
+
       setInterviewData(interview);
 
-      const jsonMockResp = JSON.parse(interview.jsonMockResp);
-      console.log(jsonMockResp);
-      setMockInterviewQuestion(jsonMockResp);
+      const jsonData = JSON.parse(interview.jsonMockResp || "{}");
+      setMockInterviewQuestion(jsonData);
     } catch (error) {
-      console.error("Error Fetching UserInterview Details: ", error);
+      console.error("❌ Error loading interview:", error);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [params.interviewId]);
 
+  useEffect(() => {
+    fetchInterviewDetails();
+  }, [fetchInterviewDetails]);
+
+  /** ============================
+   *  HELPERS
+   * ============================ */
   const getCurrentRoundQuestions = () => {
     if (!mockInterviewQuestion) return [];
-    const roundKey = `round${currentRound}`;
-    return mockInterviewQuestion[roundKey] || [];
+    return mockInterviewQuestion[`round${currentRound}`] || [];
   };
 
   const getCurrentRoundAgent = () => {
     switch (currentRound) {
-      case 1: return 'hiring_manager';
-      case 2: return 'technical_recruiter';
-      case 3: return 'panel_lead';
-      default: return 'hiring_manager';
+      case 1:
+        return "hiring_manager";
+      case 2:
+        return "technical_recruiter";
+      case 3:
+        return "panel_lead";
+      default:
+        return "hiring_manager";
     }
   };
 
   const getCurrentRoundTitle = () => {
     switch (currentRound) {
-      case 1: return '🟦 Round 1 — Hiring Manager (Problem-Solving)';
-      case 2: return '🟩 Round 2 — Technical Recruiter (Coding)';
-      case 3: return '🟧 Round 3 — Panel Lead (Communication)';
-      default: return 'Interview Round';
+      case 1:
+        return "🟦 Round 1 — Hiring Manager (Problem-Solving)";
+      case 2:
+        return "🟩 Round 2 — Technical Recruiter (Coding)";
+      case 3:
+        return "🟧 Round 3 — Panel Lead (Communication)";
+      default:
+        return "Interview Round";
     }
   };
 
+  /** ============================
+   *  NAVIGATION LOGIC
+   * ============================ */
   const handleNextQuestion = () => {
-    const currentRoundQuestions = getCurrentRoundQuestions();
-    if (activeQuestionIndex < currentRoundQuestions.length - 1) {
-      setActiveQuestionIndex(activeQuestionIndex + 1);
+    const questions = getCurrentRoundQuestions();
+    if (activeQuestionIndex < questions.length - 1) {
+      setActiveQuestionIndex((i) => i + 1);
     } else {
-      // Round completed
       setRoundCompleted(true);
     }
   };
 
+  const handlePrevQuestion = () => {
+    setActiveQuestionIndex((i) => Math.max(0, i - 1));
+  };
+
   const handleNextRound = () => {
     if (currentRound < 3) {
-      setCurrentRound(currentRound + 1);
+      setCurrentRound((r) => r + 1);
       setActiveQuestionIndex(0);
       setRoundCompleted(false);
     }
   };
 
   const isLastRound = currentRound === 3;
-  const currentRoundQuestions = getCurrentRoundQuestions();
+  const questions = getCurrentRoundQuestions();
 
+  /** ============================
+   *  LOADING STATE
+   * ============================ */
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh]">
+        <div className="h-16 w-16 rounded-full bg-gray-300 animate-pulse" />
+        <p className="mt-4 text-gray-500">Loading interview…</p>
+      </div>
+    );
+  }
+
+  if (!interviewData || !mockInterviewQuestion) {
+    return (
+      <div className="text-center p-10 text-gray-600">
+        Failed to load interview. Try again later.
+      </div>
+    );
+  }
+
+  /** ============================
+   *  ROUND COMPLETE SCREENS
+   * ============================ */
   if (roundCompleted && !isLastRound) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-10">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">{getCurrentRoundTitle()} Completed!</h2>
-          <p className="text-gray-600 mb-6">
-            Great job completing Round {currentRound}. Click below to proceed to the next round.
-          </p>
-          <Button onClick={handleNextRound} className="px-8 py-3">
-            Start Round {currentRound + 1}
-          </Button>
-        </div>
+        <h2 className="text-2xl font-bold mb-4">
+          {getCurrentRoundTitle()} Completed!
+        </h2>
+        <p className="text-gray-600 mb-6">
+          Great job finishing Round {currentRound}.  
+          Click below to start the next round.
+        </p>
+
+        <Button onClick={handleNextRound} className="px-8 py-3">
+          Start Round {currentRound + 1}
+        </Button>
       </div>
     );
   }
@@ -100,36 +149,43 @@ const StartInterview = ({ params }) => {
   if (roundCompleted && isLastRound) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-10">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">🎉 Interview Completed!</h2>
-          <p className="text-gray-600 mb-6">
-            Congratulations! You've completed all 3 rounds of the interview.
-          </p>
-          <Link href={"/dashboard/interview/" + interviewData?.mockId + "/feedback"}>
-            <Button className="px-8 py-3">View Final Report</Button>
-          </Link>
-        </div>
+        <h2 className="text-3xl font-bold mb-4">🎉 Interview Completed!</h2>
+        <p className="text-gray-600 mb-6">
+          Amazing work! You've finished all 3 rounds.
+        </p>
+
+        <Link href={`/dashboard/interview/${interviewData.mockId}/feedback`}>
+          <Button className="px-8 py-3">View Final Report</Button>
+        </Link>
       </div>
     );
   }
 
+  /** ============================
+   *  MAIN INTERVIEW SCREEN
+   * ============================ */
   return (
-    <div>
+    <div className="pb-20">
+      {/* Heading */}
       <div className="mb-6 text-center">
         <h2 className="text-xl font-semibold">{getCurrentRoundTitle()}</h2>
-        <p className="text-gray-600">Question {activeQuestionIndex + 1} of {currentRoundQuestions.length}</p>
+        <p className="text-gray-600">
+          Question {activeQuestionIndex + 1} of {questions.length}
+        </p>
       </div>
 
+      {/* Split Layout */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-        {/* Questions */}
+        {/* LEFT — QUESTION */}
         <QuestionsSection
-          mockInterviewQuestion={currentRoundQuestions}
+          mockInterviewQuestion={questions}
           activeQuestionIndex={activeQuestionIndex}
           currentRound={currentRound}
         />
-        {/* Video/Audio Recording */}
+
+        {/* RIGHT — RECORDING SECTION */}
         <RecordAnswerSection
-          mockInterviewQuestion={currentRoundQuestions}
+          mockInterviewQuestion={questions}
           activeQuestionIndex={activeQuestionIndex}
           interviewData={interviewData}
           currentRound={currentRound}
@@ -137,27 +193,30 @@ const StartInterview = ({ params }) => {
         />
       </div>
 
-      <div className="flex justify-end gap-6 mt-6">
+      {/* NAVIGATION BUTTONS */}
+      <div className="flex justify-end flex-wrap gap-6 mt-10">
         {activeQuestionIndex > 0 && (
           <Button
-            onClick={() => setActiveQuestionIndex(activeQuestionIndex - 1)}
-            className="flex gap-2 justify-center items-center"
+            onClick={handlePrevQuestion}
+            className="flex items-center gap-2"
           >
-            <ArrowLeft /> Previous Question
+            <ArrowLeft size={18} /> Previous
           </Button>
         )}
-        {activeQuestionIndex < currentRoundQuestions.length - 1 && (
+
+        {activeQuestionIndex < questions.length - 1 && (
           <Button
             onClick={handleNextQuestion}
-            className="flex gap-2 justify-center items-center"
+            className="flex items-center gap-2"
           >
-            Next Question <ArrowRight />
+            Next <ArrowRight size={18} />
           </Button>
         )}
-        {activeQuestionIndex === currentRoundQuestions.length - 1 && (
+
+        {activeQuestionIndex === questions.length - 1 && (
           <Button
             onClick={handleNextQuestion}
-            className="flex gap-2 justify-center items-center"
+            className="flex items-center gap-2"
           >
             Complete Round {currentRound}
           </Button>

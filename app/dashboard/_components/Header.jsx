@@ -1,4 +1,5 @@
 "use client";
+
 import { Button } from "@/components/ui/button";
 import { UserButton } from "@/lib/simpleAuth";
 import Image from "next/image";
@@ -11,65 +12,57 @@ const Header = () => {
   const path = usePathname();
   const router = useRouter();
 
+  const isHidden = path === "/dashboard/success";
+
+  const navItems = [
+    { label: "Dashboard", href: "/dashboard" },
+    { label: "Favourites", href: "/dashboard/favourites" },
+    { label: "Analytics", href: "/dashboard/analytics" },
+    { label: "Code Editor", href: "/code-editor" },
+    // Upgrade removed based on your setting
+  ];
+
   return (
     <div
-      className={`flex p-4 items-center bg-secondary justify-between shadow-sm relative z-20 ${path == "/dashboard/success" && "hidden"
-        }`}
+      className={`flex p-4 items-center bg-secondary justify-between shadow-sm relative z-20 ${
+        isHidden ? "hidden" : ""
+      }`}
     >
+      {/* Logo */}
       <Image
         src="/logo2.png"
         width={160}
         height={100}
-        objectFit="contain"
         alt="logo"
         onClick={() => router.replace("/")}
-        className="cursor-pointer"
+        className="cursor-pointer object-contain"
       />
 
-      <ul className={`hidden md:flex gap-6`}>
-        <li
-          onClick={() => router.replace("/dashboard")}
-          className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard" && "text-primary font-extrabold"
+      {/* Desktop Menu */}
+      <ul className="hidden md:flex gap-6">
+        {navItems.map((item) => (
+          <li
+            key={item.href}
+            onClick={() => router.replace(item.href)}
+            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${
+              path === item.href ? "text-primary font-extrabold" : ""
             }`}
-        >
-          Dashboard
-        </li>
-        <li
-          onClick={() => router.replace("/dashboard/favourites")}
-          className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard/favourites" && "text-primary font-extrabold"
-            }`}
-        >
-          Favourites
-        </li>
-        <li
-          onClick={() => router.replace("/dashboard/analytics")}
-          className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard/analytics" && "text-primary font-extrabold"
-            }`}
-        >
-          Analytics
-        </li>
-        <li
-          onClick={() => router.replace("/code-editor")}
-          className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/code-editor" && "text-primary font-extrabold"
-            }`}
-        >
-          Code Editor
-        </li>
-        {/* <li
-          onClick={() => router.replace("/dashboard/upgrade")}
-          className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${
-            path == "/dashboard/upgrade" && "text-primary font-extrabold"
-          }`}
-        >
-          Upgrade
-        </li> */} {/* Commented out for unlimited credits */}
+          >
+            {item.label}
+          </li>
+        ))}
       </ul>
 
-      {/* Mobile Navbar section from here */}
-      <div className="flex items-center">
+      {/* Right Section → User + Mobile Menu Button */}
+      <div className="flex items-center gap-3">
         <UserButton />
-        <div className="md:hidden flex justify-end ml-4">
-          <Button onClick={() => setMenuIcon(!menuIcon)}>
+
+        {/* Mobile Hamburger */}
+        <div className="md:hidden flex justify-end">
+          <Button
+            variant="secondary"
+            onClick={() => setMenuIcon((prev) => !prev)}
+          >
             {menuIcon ? (
               <CgClose className="text-2xl" />
             ) : (
@@ -79,66 +72,29 @@ const Header = () => {
         </div>
       </div>
 
+      {/* Mobile Sidebar Menu */}
       <div
-        className={`absolute top-16 left-0 w-[30%] bg-secondary md:hidden transition-transform duration-300 rounded-lg ${menuIcon ? "transform translate-x-0" : "transform -translate-x-full"
-          }`}
+        className={`absolute top-16 left-0 w-[70%] bg-secondary md:hidden transition-transform duration-300 rounded-lg shadow-lg ${
+          menuIcon ? "translate-x-0" : "-translate-x-full"
+        }`}
       >
-        <ul className="flex flex-col items-center gap-6 py-4">
-          <li
-            onClick={() => {
-              router.replace("/dashboard");
-              setMenuIcon(false);
-            }}
-            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard" && "text-primary font-extrabold"
+        <ul className="flex flex-col items-center gap-6 py-6">
+          {navItems.map((item) => (
+            <li
+              key={item.href}
+              onClick={() => {
+                router.replace(item.href);
+                setMenuIcon(false);
+              }}
+              className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${
+                path === item.href ? "text-primary font-extrabold" : ""
               }`}
-          >
-            Dashboard
-          </li>
-          <li
-            onClick={() => {
-              router.replace("/dashboard/favourites");
-              setMenuIcon(false);
-            }}
-            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard/favourites" && "text-primary font-extrabold"
-              }`}
-          >
-            Favourites
-          </li>
-          <li
-            onClick={() => {
-              router.replace("/dashboard/analytics");
-              setMenuIcon(false);
-            }}
-            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/dashboard/analytics" && "text-primary font-extrabold"
-              }`}
-          >
-            Analytics
-          </li>
-          <li
-            onClick={() => {
-              router.replace("/code-editor");
-              setMenuIcon(false);
-            }}
-            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${path == "/code-editor" && "text-primary font-extrabold"
-              }`}
-          >
-            Code Editor
-          </li>
-          {/* <li
-            onClick={() => {
-              router.replace("/dashboard/upgrade");
-              setMenuIcon(false);
-            }}
-            className={`font-medium hover:text-primary hover:font-extrabold transition-all cursor-pointer ${
-              path == "/dashboard/upgrade" && "text-primary font-extrabold"
-            }`}
-          >
-            Upgrade
-          </li> */} {/* Commented out for unlimited credits */}
+            >
+              {item.label}
+            </li>
+          ))}
         </ul>
       </div>
-
-      {/* <UserButton /> */}
     </div>
   );
 };

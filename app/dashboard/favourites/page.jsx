@@ -1,54 +1,54 @@
 "use client";
+
 import { GetInterviewList } from "@/app/_Serveractions";
 import { useUser } from "@/lib/simpleAuth";
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import InterviewItemCard from "../_components/InterviewItemCard";
-import Loading from "../_components/Loading"; // Assuming you have a Loading component
+import Loading from "../_components/Loading";
 import NoDataFound from "../_components/NoDataFound";
-// import Lottie from "lottie-react";
-// import Favourite_Astronaut from "@/public/Favourite_Astronaut.json";
 
 const FavouriteInterviews = () => {
-  const [interviewList, setInterviewList] = useState([]);
-  const [filteredList, setFilteredList] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [Lottie, setLottie] = useState(null);
-  const [Favourite_Astronaut, setFavouriteAstronaut] = useState(null);
   const { user } = useUser();
 
+  const [interviewList, setInterviewList] = useState([]);
+  const [filteredList, setFilteredList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const [Lottie, setLottie] = useState(null);
+  const [Favourite_Astronaut, setFavouriteAstronaut] = useState(null);
+
+  // Load Lottie dynamically (client-only)
   useEffect(() => {
-    // Dynamically import Lottie and animation data on client side
-    import('lottie-react').then((module) => {
+    import("lottie-react").then((module) => {
       setLottie(() => module.default);
     });
-    import('@/public/Favourite_Astronaut.json').then((module) => {
+    import("@/public/Favourite_Astronaut.json").then((module) => {
       setFavouriteAstronaut(module.default);
     });
   }, []);
 
   useEffect(() => {
-    if (user) getInterviewList();
+    if (user?.email) {
+      fetchInterviews();
+    }
   }, [user]);
 
-  const getInterviewList = async () => {
+  const fetchInterviews = async () => {
     try {
       setLoading(true);
-      const result = await GetInterviewList(
-        user?.email
-      );
+
+      const result = await GetInterviewList(user.email);
 
       if (result) {
-        console.log("MOCKInterview in favourite 🚀 ", result);
+        console.log("Favourite interviews 🚀", result);
         setInterviewList(result);
 
-        const favFilteredList = result?.filter(
-          (interview) => interview?.favourite
-        );
-        setFilteredList(favFilteredList);
+        const favorites = result.filter((interview) => interview?.favourite);
+        setFilteredList(favorites);
       }
     } catch (error) {
-      console.log("Error fetching favourite interviews", error);
+      console.error("Error fetching favourite interviews:", error);
       toast.error("Error fetching favourite interviews");
     } finally {
       setLoading(false);
@@ -57,13 +57,15 @@ const FavouriteInterviews = () => {
 
   return (
     <div>
-  <h2 className="font-semibold text-lg">Favourite Hiremate Mock Interviews</h2>
+      <h2 className="font-semibold text-lg">Favourite Hiremate Mock Interviews</h2>
+
       {loading ? (
         <div className="flex justify-center items-center m-auto h-[50%]">
           <Loading />
         </div>
       ) : (
         <>
+          {/* Lottie Animation */}
           <div>
             {Lottie && Favourite_Astronaut ? (
               <Lottie
@@ -75,13 +77,15 @@ const FavouriteInterviews = () => {
               <div className="h-72 w-72 bg-gray-200 rounded animate-pulse m-auto"></div>
             )}
           </div>
+
+          {/* Favourite Interview List */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 my-3">
             {filteredList.length > 0 ? (
-              filteredList.map((favinterview, index) => (
+              filteredList.map((favInterview) => (
                 <InterviewItemCard
-                  key={index}
-                  interview={favinterview}
-                  refreshCallBack={() => getInterviewList()}
+                  key={favInterview.mockId}
+                  interview={favInterview}
+                  refreshCallBack={fetchInterviews}
                 />
               ))
             ) : (
@@ -98,5 +102,4 @@ const FavouriteInterviews = () => {
 
 export default FavouriteInterviews;
 
-// Force dynamic rendering for this page
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";

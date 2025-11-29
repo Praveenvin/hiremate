@@ -6,36 +6,47 @@ import { useRouter } from "next/navigation";
 export default function AnalyticsPage() {
     const { user } = useUser();
     const router = useRouter();
+
     const [interviews, setInterviews] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState({
+
+    const defaultStats = {
         totalInterviews: 0,
         avgOverallScore: 0,
         avgProblemSolving: 0,
         avgTechnicalAccuracy: 0,
         avgCommunication: 0,
         improvement: 0,
-    });
+    };
+
+    const [stats, setStats] = useState(defaultStats);
 
     useEffect(() => {
+        // Prevent redirect glitches during hydration
+        if (user === undefined) return;
+
         if (!user) {
             router.push("/sign-in");
             return;
         }
+
         fetchAnalytics();
     }, [user]);
 
     const fetchAnalytics = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/analytics?email=${encodeURIComponent(user.email)}`);
+            const response = await fetch(
+                `/api/analytics?email=${encodeURIComponent(user.email)}`
+            );
             if (!response.ok) throw new Error("Failed to fetch analytics");
 
             const data = await response.json();
             setInterviews(data.interviews || []);
-            setStats(data.stats || stats);
+            setStats(data.stats || defaultStats);
         } catch (error) {
             console.error("Error fetching analytics:", error);
+            setStats(defaultStats);
         } finally {
             setLoading(false);
         }
@@ -65,23 +76,43 @@ export default function AnalyticsPage() {
                 {/* Performance Overview */}
                 <div className="bg-white rounded-lg shadow-md p-6 mb-8">
                     <h2 className="text-2xl font-semibold mb-6">Performance Overview</h2>
+
                     <div className="space-y-4">
-                        <ProgressBar label="👨‍💼 Hiring Manager (Problem-Solving)" value={stats.avgProblemSolving} color="bg-purple-500" />
-                        <ProgressBar label="👩‍💻 Technical Recruiter (Accuracy)" value={stats.avgTechnicalAccuracy} color="bg-green-500" />
-                        <ProgressBar label="🧑‍🏫 Panel Lead (Communication)" value={stats.avgCommunication} color="bg-blue-500" />
-                        <ProgressBar label="📈 Overall Performance" value={stats.avgOverallScore} color="bg-indigo-600" />
+                        <ProgressBar
+                            label="👨‍💼 Hiring Manager (Problem-Solving)"
+                            value={stats.avgProblemSolving}
+                            color="bg-purple-500"
+                        />
+                        <ProgressBar
+                            label="👩‍💻 Technical Recruiter (Accuracy)"
+                            value={stats.avgTechnicalAccuracy}
+                            color="bg-green-500"
+                        />
+                        <ProgressBar
+                            label="🧑‍🏫 Panel Lead (Communication)"
+                            value={stats.avgCommunication}
+                            color="bg-blue-500"
+                        />
+                        <ProgressBar
+                            label="📈 Overall Performance"
+                            value={stats.avgOverallScore}
+                            color="bg-indigo-600"
+                        />
                     </div>
                 </div>
 
                 {/* Interview History */}
                 <div className="bg-white rounded-lg shadow-md p-6">
                     <h2 className="text-2xl font-semibold mb-6">Interview History</h2>
+
                     {interviews.length === 0 ? (
-                        <p className="text-gray-500 text-center py-8">No interviews completed yet. Start your first interview!</p>
+                        <p className="text-gray-500 text-center py-8">
+                            No interviews completed yet. Start your first interview!
+                        </p>
                     ) : (
                         <div className="space-y-4">
                             {interviews.map((interview, idx) => (
-                                <InterviewCard key={idx} interview={interview} />
+                                <InterviewCard key={interview.mockId || idx} interview={interview} />
                             ))}
                         </div>
                     )}
@@ -92,28 +123,42 @@ export default function AnalyticsPage() {
                     <div className="bg-white rounded-lg shadow-md p-6">
                         <h3 className="text-xl font-semibold mb-4 text-green-600">💪 Strengths</h3>
                         <ul className="space-y-2">
-                            {stats.avgCommunication >= stats.avgProblemSolving && stats.avgCommunication >= stats.avgTechnicalAccuracy && (
-                                <li className="flex items-center"><span className="mr-2">✓</span> Excellent communication skills</li>
-                            )}
+                            {stats.avgCommunication >= stats.avgProblemSolving &&
+                                stats.avgCommunication >= stats.avgTechnicalAccuracy && (
+                                    <li className="flex items-center">
+                                        <span className="mr-2">✓</span> Excellent communication skills
+                                    </li>
+                                )}
                             {stats.avgTechnicalAccuracy >= 75 && (
-                                <li className="flex items-center"><span className="mr-2">✓</span> Strong technical knowledge</li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> Strong technical knowledge
+                                </li>
                             )}
                             {stats.avgProblemSolving >= 75 && (
-                                <li className="flex items-center"><span className="mr-2">✓</span> Good problem-solving abilities</li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">✓</span> Good problem-solving abilities
+                                </li>
                             )}
                         </ul>
                     </div>
+
                     <div className="bg-white rounded-lg shadow-md p-6">
                         <h3 className="text-xl font-semibold mb-4 text-orange-600">🎯 Areas for Improvement</h3>
                         <ul className="space-y-2">
                             {stats.avgCommunication < 70 && (
-                                <li className="flex items-center"><span className="mr-2">→</span> Work on communication clarity</li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">→</span> Work on communication clarity
+                                </li>
                             )}
                             {stats.avgTechnicalAccuracy < 70 && (
-                                <li className="flex items-center"><span className="mr-2">→</span> Deepen technical understanding</li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">→</span> Deepen technical understanding
+                                </li>
                             )}
                             {stats.avgProblemSolving < 70 && (
-                                <li className="flex items-center"><span className="mr-2">→</span> Practice problem-solving approaches</li>
+                                <li className="flex items-center">
+                                    <span className="mr-2">→</span> Practice problem-solving strategies
+                                </li>
                             )}
                         </ul>
                     </div>
@@ -122,6 +167,8 @@ export default function AnalyticsPage() {
         </div>
     );
 }
+
+/* ------------------------------ Components ------------------------------ */
 
 function StatCard({ title, value, color = "gray" }) {
     const colorClasses = {
@@ -147,7 +194,10 @@ function ProgressBar({ label, value, color }) {
                 <span className="text-sm font-medium">{value}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
-                <div className={`${color} h-3 rounded-full transition-all duration-500`} style={{ width: `${value}%` }}></div>
+                <div
+                    className={`${color} h-3 rounded-full transition-all duration-500`}
+                    style={{ width: `${value}%` }}
+                ></div>
             </div>
         </div>
     );
@@ -166,20 +216,21 @@ function InterviewCard({ interview }) {
                     <div className="text-xs text-gray-500">Overall</div>
                 </div>
             </div>
+
             <div className="grid grid-cols-3 gap-2 text-sm">
-                <div className="text-center p-2 bg-purple-50 rounded">
-                    <div className="font-semibold">{interview.problemSolving}%</div>
-                    <div className="text-xs text-gray-600">Problem Solving</div>
-                </div>
-                <div className="text-center p-2 bg-green-50 rounded">
-                    <div className="font-semibold">{interview.technicalAccuracy}%</div>
-                    <div className="text-xs text-gray-600">Technical</div>
-                </div>
-                <div className="text-center p-2 bg-blue-50 rounded">
-                    <div className="font-semibold">{interview.communication}%</div>
-                    <div className="text-xs text-gray-600">Communication</div>
-                </div>
+                <ScoreBox label="Problem Solving" score={interview.problemSolving} bg="purple" />
+                <ScoreBox label="Technical" score={interview.technicalAccuracy} bg="green" />
+                <ScoreBox label="Communication" score={interview.communication} bg="blue" />
             </div>
+        </div>
+    );
+}
+
+function ScoreBox({ label, score, bg }) {
+    return (
+        <div className={`text-center p-2 bg-${bg}-50 rounded`}>
+            <div className="font-semibold">{score}%</div>
+            <div className="text-xs text-gray-600">{label}</div>
         </div>
     );
 }
